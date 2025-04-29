@@ -1,0 +1,32 @@
+schema_version = "1.0.0"
+
+id = "color_renderer"
+version = "0.0.1"
+name = "Batch Color Renderer"
+tagline = "This extension allows for easy and efficient batch rendering of material color variations"
+maintainer = "Tudor Macovei <tudor_macovei@icloud.com>"
+
+type = "add-on"
+
+tags = ["Material", "Pipeline"]
+
+blender_version_min = "4.2.0"
+# blender_version_max = "5.1.0"
+
+# License conforming to https://spdx.org/licenses/ (use "SPDX: prefix)
+# https://docs.blender.org/manual/en/dev/advanced/extensions/licenses.html
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+# # Optional: bundle 3rd party Python modules.
+# # https://docs.blender.org/manual/en/dev/advanced/extensions/python_wheels.html
+# wheels = [
+#   "./wheels/hexdump-3.3-py3-none-any.whl",
+#   "./wheels/jsmin-3.0.1-py3-none-any.whl",
+# ]
+
+# Required resources:
+# [permissions]
+files = "Access to disk necessary to specify output directory and check for already-rendered frames"
+# clipboard = "TBD"
