@@ -123,10 +123,8 @@ class MATERIAL_UL_color_swatch(UIList):
     """Custom UIList to display color swatches inline"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         # item is a ColorItem
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            swatch = layout.split(factor=0.7)
-            swatch.prop(item, "color", text="")
-#            layout.prop(item, "color", text="", emboss=True)
+        swatch = layout.split(factor=0.7)
+        swatch.prop(item, "color", text="")
 
 class MATERIAL_PT_batch_color(Panel):
     bl_label = "Batch Material Color Picker"
@@ -135,12 +133,11 @@ class MATERIAL_PT_batch_color(Panel):
     bl_context = "material"
 
     def draw(self, context):
-        layout = self.layout
         settings = context.scene.mat_color_settings
 
-        layout.prop(settings, "material_name")
+        self.layout.prop(settings, "material_name")
 
-        row = layout.row()
+        row = self.layout.row()
         row.template_list(
             "MATERIAL_UL_color_swatch", "material_colors",
             settings, "colors",
@@ -151,33 +148,31 @@ class MATERIAL_PT_batch_color(Panel):
         col.operator(MATERIAL_OT_color_add.bl_idname, icon='ADD', text="")
         col.operator(MATERIAL_OT_color_remove.bl_idname, icon='REMOVE', text="")
 
-        layout.separator()
-        layout.operator(RENDER_OT_render_batch.bl_idname, icon='RENDER_STILL')
+        self.layout.separator()
+        self.layout.operator(RENDER_OT_render_batch.bl_idname, icon='RENDER_STILL')
 
+
+classes = (
+    ColorItem,
+    BatchRenderSettings,
+    MATERIAL_OT_color_add,
+    MATERIAL_OT_color_remove,
+    RENDER_OT_render_batch,
+    MATERIAL_UL_color_swatch,
+    MATERIAL_PT_batch_color
+)
 
 def register():
-    bpy.utils.register_class(ColorItem)
-    bpy.utils.register_class(BatchRenderSettings)
+    for cls in classes:
+        bpy.utils.register_class(cls)
+    
     bpy.types.Scene.mat_color_settings = PointerProperty(type=BatchRenderSettings)
-
-    bpy.utils.register_class(MATERIAL_OT_color_add)
-    bpy.utils.register_class(MATERIAL_OT_color_remove)
-    bpy.utils.register_class(RENDER_OT_render_batch)
-    bpy.utils.register_class(MATERIAL_UL_color_swatch)
-    bpy.utils.register_class(MATERIAL_PT_batch_color)
-
-
+    
 def unregister():
     del bpy.types.Scene.mat_color_settings
     
-    bpy.utils.unregister_class(MATERIAL_PT_batch_color)
-    bpy.utils.unregister_class(MATERIAL_UL_color_swatch)
-    bpy.utils.unregister_class(RENDER_OT_render_batch)
-    bpy.utils.unregister_class(MATERIAL_OT_color_remove)
-    bpy.utils.unregister_class(MATERIAL_OT_color_add)
-    bpy.utils.unregister_class(BatchRenderSettings)
-    bpy.utils.unregister_class(ColorItem)
-
-
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+        
 if __name__ == "__main__":
     register()
