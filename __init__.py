@@ -60,6 +60,8 @@ class MATERIAL_OT_add_material(Operator):
         settings = context.scene.batch_settings
         settings.materials.add()
         settings.mat_index = len(settings.materials) - 1
+        settings.materials[settings.mat_index].colors.add()  # add a color to the new material
+        settings.materials[settings.mat_index].color_index = 0
         return {'FINISHED'}
 
 
@@ -89,7 +91,13 @@ class MATERIAL_OT_remove_color(Operator):
     bl_label = "Remove Color"
     bl_description = "Remove selected color"
     
-    # TODO: add check to prevent removing the last color
+    # Check to prevent removing the last color
+    @classmethod
+    def poll(cls, context):
+        settings = context.scene.batch_settings
+        mat_item = settings.materials[settings.mat_index]
+        return mat_item.colors and len(mat_item.colors) > 1
+    
     def execute(self, context):
         settings = context.scene.batch_settings
         mat_item = settings.materials[settings.mat_index]
@@ -97,17 +105,21 @@ class MATERIAL_OT_remove_color(Operator):
         mat_item.color_index = max(0, mat_item.color_index - 1)
         return {'FINISHED'}
 
-# TODO: add a verification step that computes the number of combinations and asks for confirmation before rendering
+
+
+# TODO: Add a verification step that computes the number of combinations and asks for confirmation before rendering
 class RENDER_OT_render_batch(Operator):
-    """Render all combinations (cartesian product) of material colors."""
+    """Render all combinations (cartesian product) of material colors.""" 
     bl_idname = "material.render_combinations"
-    bl_label = "Render All Combinations"
     bl_description = "Render batch of all color combinations"
     bl_options = {'REGISTER', 'UNDO'}
+    bl_label = "Start Batch Render"
+    
+    combination_count = 0
 
-    def execute(self, context):
+    def get_color_combinations(self, context):
         settings = context.scene.batch_settings
-
+        
         mat_color_lists = []
         
         # Only add material to render list if it has at least one RGB node
@@ -116,18 +128,21 @@ class RENDER_OT_render_batch(Operator):
             if mat and mat.use_nodes:
                 nodes = [n for n in mat.node_tree.nodes if n.type=='RGB']
                 if not nodes:
-                    self.report({'WARNING'}, f"No RGB node in {mat.name}")
-                    return {'CANCELLED'}
-                mat_color_lists.append((mat, mat_item.colors[:]))
+                    self.report({'WARNING'}, f"No RGB node found in {mat.name}. Skipping material...")
+                else:
+                    mat_color_lists.append((mat, mat_item.colors[:]))
             else:
-                self.report({'WARNING'}, f"Skipping {mat_item.mat_name}")
-                continue
+                self.report({'WARNING'}, f"Error while reading material {mat_item.mat_name}! Skipping...")
 
         # Cartesian product of color lists
         combos = list(itertools.product(*[color_list for _, color_list in mat_color_lists]))
-        count = 0
+        return combos, mat_color_lists
 
-        for combo in combos:
+    def execute(self, context):
+        count = 0
+        color_combinations, mat_color_lists = self.get_color_combinations(context = context)
+
+        for combo in color_combinations:
             for (mat, _), color_item in zip(mat_color_lists, combo):
                 # get first RGB node in the material
                 rgb_node = next(node for node in mat.node_tree.nodes if node.type=='RGB')
@@ -144,6 +159,10 @@ class RENDER_OT_render_batch(Operator):
             count += 1
 
         return {'FINISHED'}
+    
+    # Add confirmation dialog before rendering
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event, message = f"Render {len(self.get_color_combinations(context=context)[0])} Combinations")
 
 
 class MATERIAL_PT_batch_render_settings(Panel):
