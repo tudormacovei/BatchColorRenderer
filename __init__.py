@@ -38,13 +38,13 @@ class MasterSettings(PropertyGroup):
 
 # UILists for Materials & Colors
 
-class MATERIAL_UL_material_list(UIList):
+class BATCH_COLORS_UL_material_list(UIList):
     """List of materials"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         split = layout.split(factor=0.7) # reduce width to allow for selection
         split.prop(item, "mat_name", text="")
 
-class MATERIAL_UL_color_list(UIList):
+class BATCH_COLORS_UL_color_list(UIList):
     """List of colors for the selected material"""
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         split = layout.split(factor=0.5) # reduce width to allow for selection
@@ -53,8 +53,8 @@ class MATERIAL_UL_color_list(UIList):
 
 # Operators to Add/Remove items
 
-class MATERIAL_OT_add_material(Operator):
-    bl_idname = "material.add_material"
+class BATCH_COLORS_OT_add_material(Operator):
+    bl_idname = "material_list.add_material"
     bl_label = "Add Material"
     def execute(self, context):
         settings = context.scene.batch_settings
@@ -65,8 +65,8 @@ class MATERIAL_OT_add_material(Operator):
         return {'FINISHED'}
 
 
-class MATERIAL_OT_remove_material(Operator):
-    bl_idname = "material.remove_material"
+class BATCH_COLORS_OT_remove_material(Operator):
+    bl_idname = "material_list.remove_material"
     bl_label = "Remove Material"
     def execute(self, context):
         settings = context.scene.batch_settings
@@ -75,8 +75,8 @@ class MATERIAL_OT_remove_material(Operator):
         return {'FINISHED'}
 
 
-class MATERIAL_OT_add_color(Operator):
-    bl_idname = "material.add_color"
+class BATCH_COLORS_OT_add_color(Operator):
+    bl_idname = "color_list.add_color"
     bl_label = "Add Color"
     def execute(self, context):
         settings = context.scene.batch_settings
@@ -86,8 +86,8 @@ class MATERIAL_OT_add_color(Operator):
         return {'FINISHED'}
 
 
-class MATERIAL_OT_remove_color(Operator):
-    bl_idname = "material.remove_color"
+class BATCH_COLORS_OT_remove_color(Operator):
+    bl_idname = "color_list.remove_color"
     bl_label = "Remove Color"
     bl_description = "Remove selected color"
     
@@ -108,9 +108,9 @@ class MATERIAL_OT_remove_color(Operator):
 
 
 # TODO: Add a verification step that computes the number of combinations and asks for confirmation before rendering
-class RENDER_OT_render_batch(Operator):
+class BATCH_COLORS_OT_render_batch(Operator):
     """Render all combinations (cartesian product) of material colors.""" 
-    bl_idname = "material.render_combinations"
+    bl_idname = "batch.render_combinations"
     bl_description = "Render batch of all color combinations"
     bl_options = {'REGISTER', 'UNDO'}
     bl_label = "Start Batch Render"
@@ -118,9 +118,11 @@ class RENDER_OT_render_batch(Operator):
     combination_count = 0
 
     def get_color_combinations(self, context):
+        "Outputs a touple of two lists: One list of color combinations, and one list of materials"
         settings = context.scene.batch_settings
         
-        mat_color_lists = []
+        materials = []
+        color_lists = []
         
         # Only add material to render list if it has at least one RGB node
         for mat_item in settings.materials:
@@ -130,20 +132,21 @@ class RENDER_OT_render_batch(Operator):
                 if not nodes:
                     self.report({'WARNING'}, f"No RGB node found in {mat.name}. Skipping material...")
                 else:
-                    mat_color_lists.append((mat, mat_item.colors[:]))
+                    color_lists.append(mat_item.colors[:])
+                    materials.append(mat)
             else:
                 self.report({'WARNING'}, f"Error while reading material {mat_item.mat_name}! Skipping...")
 
         # Cartesian product of color lists
-        combos = list(itertools.product(*[color_list for _, color_list in mat_color_lists]))
-        return combos, mat_color_lists
+        combos = list(itertools.product(*[color_list for color_list in color_lists]))
+        return combos, materials
 
     def execute(self, context):
         count = 0
-        color_combinations, mat_color_lists = self.get_color_combinations(context = context)
+        color_combinations, materials = self.get_color_combinations(context = context)
 
         for combo in color_combinations:
-            for (mat, _), color_item in zip(mat_color_lists, combo):
+            for mat, color_item in zip(materials, combo):
                 # get first RGB node in the material
                 rgb_node = next(node for node in mat.node_tree.nodes if node.type=='RGB')
                 # set the color of the RGB node
@@ -160,17 +163,16 @@ class RENDER_OT_render_batch(Operator):
 
         return {'FINISHED'}
     
-    # Add confirmation dialog before rendering
+    # Add confirmation dialog before rendering (because total number of combinations can grow very quickly)
     def invoke(self, context, event):
-        return context.window_manager.invoke_confirm(self, event, message = f"Render {len(self.get_color_combinations(context=context)[0])} Combinations")
+        return context.window_manager.invoke_confirm(self, event, message = f"Render batch totalling {len(self.get_color_combinations(context=context)[0])} images (material color combinations)?")
 
 
-class MATERIAL_PT_batch_render_settings(Panel):
+class BATCH_COLORS_PT_batch_render_settings(Panel):
     bl_label = "Batch Render Settings"
-    bl_idname = "MATERIAL_PT_batch_render_settings"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-    bl_context = "render"
+    bl_context = "output"
 
     def draw(self, context):
         settings = context.scene.batch_settings
@@ -181,33 +183,33 @@ class MATERIAL_PT_batch_render_settings(Panel):
 
         # Material list + add/remove
         col_materials.template_list(
-            "MATERIAL_UL_material_list", "", settings,
+            "BATCH_COLORS_UL_material_list", "", settings,
             "materials", settings, "mat_index", rows=4
         )
         sub = col_materials.column(align=True)
-        sub.operator("material.add_material", icon='ADD', text="")
-        sub.operator("material.remove_material", icon='REMOVE', text="")
+        sub.operator("material_list.add_material", icon='ADD', text="")
+        sub.operator("material_list.remove_material", icon='REMOVE', text="")
 
         # Colors for selected material
         if settings.materials:
             mat_item = settings.materials[settings.mat_index]
             col_colors.template_list(
-                "MATERIAL_UL_color_list", "", mat_item,
+                "BATCH_COLORS_UL_color_list", "", mat_item,
                 "colors", mat_item, "color_index", rows=4
             )
             sub2 = col_colors.column(align=True)
-            sub2.operator("material.add_color", icon='ADD', text="")
-            sub2.operator("material.remove_color", icon='REMOVE', text="")
+            sub2.operator("color_list.add_color", icon='ADD', text="")
+            sub2.operator("color_list.remove_color", icon='REMOVE', text="")
 
         self.layout.separator()
-        self.layout.operator("material.render_combinations", icon='RENDER_STILL')
+        self.layout.operator("batch.render_combinations", icon='RENDER_STILL')
 
 classes = (
     ColorItem, MaterialItem, MasterSettings,
-    MATERIAL_UL_material_list, MATERIAL_UL_color_list,
-    MATERIAL_OT_add_material, MATERIAL_OT_remove_material,
-    MATERIAL_OT_add_color, MATERIAL_OT_remove_color,
-    RENDER_OT_render_batch, MATERIAL_PT_batch_render_settings
+    BATCH_COLORS_UL_material_list, BATCH_COLORS_UL_color_list,
+    BATCH_COLORS_OT_add_material, BATCH_COLORS_OT_remove_material,
+    BATCH_COLORS_OT_add_color, BATCH_COLORS_OT_remove_color,
+    BATCH_COLORS_OT_render_batch, BATCH_COLORS_PT_batch_render_settings
 )
 
 def register():
@@ -222,3 +224,4 @@ def unregister():
 
 if __name__ == "__main__":
     register()
+    
